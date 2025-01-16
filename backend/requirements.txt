@@ -1,0 +1,8 @@
+Django<5.0,>=4.0
+djangorestframework<5.0,>=3.12
+djangorestframework-simplejwt<6.0,>=5.0.0
+django-cors-headers
+python-dotenv
+django-extensions
+gunicorn<21.0,>=20.1
+psycopg2-binary
