@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres
+    container_name: postgres_container
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: study_bridge_user
+      POSTGRES_PASSWORD: your_password
+      POSTGRES_DB: study_bridge
+    volumes:
+      - postgres_data:/var/lib/postgresql/data  # Persistent volume
+
+volumes:
+  postgres_data:  # Volume declaration
