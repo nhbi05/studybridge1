@@ -9,7 +9,7 @@ from .views import (
 
 urlpatterns = [
     # StudyGroup URLs
-    path('study-groups/', StudyGroupViewSet.as_view({'get': 'list', 'post': 'create'}), name='study-group-list'),
+    path('study-group/', StudyGroupViewSet.as_view({'get': 'list', 'post': 'create'}), name='study-group-list'),
     path('study-groups/<int:pk>/', StudyGroupViewSet.as_view({'get': 'retrieve', 'put': 'update', 'delete': 'destroy'}), name='study-group-detail'),
     path('study-groups/<int:pk>/members/', StudyGroupViewSet.as_view({'get': 'members'}), name='study-group-members'),
 
