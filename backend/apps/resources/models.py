@@ -1,12 +1,9 @@
 from django.db import models
-
-# Create your models here.
-from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.conf import settings
 # Create your models here.
 
-
+# Define choices for academic years
 YEAR_CHOICES = [
     (1, "First Year"),
     (2, "Second Year"),
@@ -14,11 +11,13 @@ YEAR_CHOICES = [
     (4, "Fourth Year")
 ]
 
+# Define choices for semesters
 SEMESTER_CHOICES = [
     (1, "First Semester"),
     (2, "Second Semester")
 ]
 
+# Define choices for courses
 COURSE_CHOICES = [
     ("CS", "Computer Science"),
     ("ENG", "Engineering"),
@@ -26,12 +25,14 @@ COURSE_CHOICES = [
     ("BUS", "Business"),
     ("LAW", "Law"),
 ]
+
+# Custom user model extending AbstractUser
 class User(AbstractUser):
     groups = models.ManyToManyField(
         'auth.Group',
         related_name='resources_user_set',  # Updated related_name
         blank=True,
-        #help_text='The groups this user belongs to. A user will get all permissions granted to each of their groups.'
+        # Help text for user groups
     )
     user_permissions = models.ManyToManyField(
         'auth.Permission',
@@ -43,6 +44,7 @@ class User(AbstractUser):
     year_of_study = models.IntegerField(choices=YEAR_CHOICES)
     semester = models.IntegerField(choices=SEMESTER_CHOICES)
 
+# Model representing a course unit
 class CourseUnit(models.Model):
     name = models.CharField(max_length=200)
     course = models.CharField(max_length=100, choices=COURSE_CHOICES)
@@ -72,16 +74,16 @@ class Resource(models.Model):
     class Meta:
         abstract = True  # This makes Resource an abstract base class, not a model itself
 
-
+# Model for notes, inheriting from Resource
 class Note(Resource):
     file = models.FileField(upload_to='notes/')
     
     class Meta:
         ordering = ['-upload_date']
 
-
 from django.core.exceptions import ValidationError
 
+# Model for tutorials, inheriting from Resource
 class Tutorial(Resource):
     TUTORIAL_TYPES = [
         ('video', 'Video Tutorial'),
@@ -97,4 +99,3 @@ class Tutorial(Resource):
             raise ValidationError("Video tutorials must have a video URL.")
         if self.tutorial_type == 'live' and not self.scheduled_time:
             raise ValidationError("Live sessions must have a scheduled time.")
-

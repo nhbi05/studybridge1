@@ -10,7 +10,8 @@ from .serializers import NoteSerializer, TutorialSerializer
 
 def user_course_filter(view_func):
     """
-    Decorator to automatically filter querysets based on user's course, year, and semester
+    Decorator to automatically filter querysets based on user's course, year, and semester.
+    This decorator modifies the request to include user-specific filters.
     """
     @wraps(view_func)
     def wrapper(request, *args, **kwargs):
@@ -25,6 +26,11 @@ def user_course_filter(view_func):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def user_info(request):
+    """
+    Retrieve user information including username, course, year of study, semester,
+    last login, and date joined.
+    Returns a 400 error if the user profile is incomplete.
+    """
     try:
         return Response({
             "username": request.user.username,
@@ -44,7 +50,7 @@ def user_info(request):
 @permission_classes([IsAuthenticated])
 @user_course_filter
 def note_list(request):
-    """List all notes or create a new note"""
+    """List all notes or create a new note."""
     if request.method == 'GET':
         notes = Note.objects.filter(**request.user_filters)
         
@@ -79,7 +85,7 @@ def note_list(request):
 @api_view(['GET', 'PUT', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def note_detail(request, pk):
-    """Retrieve, update, or delete a note"""
+    """Retrieve, update, or delete a note."""
     try:
         note = Note.objects.get(pk=pk)
     except Note.DoesNotExist:
@@ -111,7 +117,7 @@ def note_detail(request, pk):
 @permission_classes([IsAuthenticated])
 @user_course_filter
 def tutorial_list(request):
-    """List all tutorials or create a new tutorial"""
+    """List all tutorials or create a new tutorial."""
     if request.method == 'GET':
         tutorials = Tutorial.objects.filter(**request.user_filters)
         
@@ -148,7 +154,7 @@ def tutorial_list(request):
 @permission_classes([IsAuthenticated])
 @user_course_filter
 def dashboard_view(request):
-    """Get a comprehensive dashboard view of notes and tutorials"""
+    """Get a comprehensive dashboard view of notes and tutorials."""
     # Get recent notes
     notes = Note.objects.filter(**request.user_filters)
     recent_notes = notes.order_by('-upload_date')[:5]
@@ -170,23 +176,11 @@ def dashboard_view(request):
         }
     })
 
-# serializers.py
-from rest_framework import serializers
-from .models import CourseUnit
-
-class CourseUnitSerializer(serializers.ModelSerializer):
-    course_display = serializers.CharField(source='get_course_display', read_only=True)
-    
-    class Meta:
-        model = CourseUnit
-        fields = ['id', 'name', 'course', 'course_display', 'year_of_study', 'semester']
-
-
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 @user_course_filter
 def course_unit_list(request):
-    """List all course units filtered by user's course, year, and semester"""
+    """List all course units filtered by user's course, year, and semester."""
     course_units = CourseUnit.objects.filter(**request.user_filters)
     
     # Optional search parameter
@@ -199,4 +193,3 @@ def course_unit_list(request):
         'count': course_units.count(),
         'results': serializer.data
     })
-
