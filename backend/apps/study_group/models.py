@@ -55,8 +55,8 @@ class GroupResource(models.Model):
     class Meta:
         ordering = ['-upload_date']
 
+"""Model for group discussions/threads"""
 class GroupDiscussion(models.Model):
-    """Model for group discussions/threads"""
     title = models.CharField(max_length=200)
     content = models.TextField()
     group = models.ForeignKey(StudyGroup, on_delete=models.CASCADE)
@@ -70,8 +70,8 @@ class GroupDiscussion(models.Model):
     class Meta:
         ordering = ['-created_at']
 
+"""Model for comments in group discussions"""
 class DiscussionComment(models.Model):
-    """Model for comments in group discussions"""
     discussion = models.ForeignKey(GroupDiscussion, on_delete=models.CASCADE)
     content = models.TextField()
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
