@@ -20,8 +20,8 @@ async def upload_curriculum(
     """Upload and parse a curriculum file (PDF, DOCX, or TXT).
     
     Flow:
-    1. Upload file to Supabase Storage
-    2. Parse file and extract topics with Gemini
+    1. Upload file to Supabase Storage (as binary)
+    2. Extract topics directly from file bytes with Gemini multimodal
     3. Generate S-BERT embeddings for each topic
     4. Save curriculum metadata
     5. Batch save curriculum topics with embeddings
@@ -31,37 +31,33 @@ async def upload_curriculum(
     try:
         user_id = current_user.id
         
-        # 1. Read file content
-        content = await file.read()
+        # 1. Read file content as BINARY (don't decode!)
+        file_content = await file.read()
 
         # 2. Upload file to Supabase Storage
         file_url = await supabase.upload_curriculum_file(
             user_id=user_id,
             file_name=file.filename,
-            file_content=content,
+            file_content=file_content,
         )
 
-        # 3. Determine file type and parse
-        if file.filename.endswith(".pdf"):
-            curriculum_text = await parser.parse_pdf(content)
-        elif file.filename.endswith(".docx"):
-            curriculum_text = content.decode("utf-8")
-        else:
-            curriculum_text = await parser.parse_text_file(content)
-
-        # 4. Extract topics with Gemini
-        parse_result = await parser.extract_topics(curriculum_text)
+        # 3. Extract topics directly from file bytes using Gemini multimodal
+        # This handles PDF, DOCX, TXT without manual parsing (no UTF-8 errors!)
+        parse_result = await parser.extract_topics_from_file(
+            file_bytes=file_content,
+            file_name=file.filename
+        )
 
         if not parse_result.success:
             raise HTTPException(status_code=400, detail=parse_result.error)
 
-        # 5. Generate S-BERT embeddings for each topic
+        # 4. Generate S-BERT embeddings for each topic
         topics_with_embeddings = await parser.embed_topics(parse_result.topics)
 
-        # 6. Generate summary
-        summary = await parser.generate_curriculum_summary(curriculum_text)
+        # 5. Generate summary from topics
+        summary = f"Curriculum containing {len(parse_result.topics)} core topics: {', '.join([t.name for t in parse_result.topics[:5]])}"
 
-        # 7. Save curriculum metadata (WITHOUT topics)
+        # 6. Save curriculum metadata (WITHOUT topics column)
         saved_curriculum = await supabase.save_curriculum(
             user_id=user_id,
             file_name=file.filename,
@@ -74,7 +70,7 @@ async def upload_curriculum(
 
         curriculum_id = saved_curriculum.get("id")
 
-        # 8. Batch save topics with embeddings to curriculum_topics table
+        # 7. Batch save topics with embeddings to curriculum_topics table
         await supabase.save_curriculum_topics(
             curriculum_id=curriculum_id,
             topics=topics_with_embeddings,

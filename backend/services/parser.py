@@ -1,62 +1,58 @@
 """Curriculum parsing and topic extraction logic."""
 import json
 import os
-import PyPDF2
+import base64
 from typing import Optional
-from io import BytesIO
 from google import genai
+from google.genai import types
 from sentence_transformers import SentenceTransformer
 from models.schemas import TopicExtraction, ParseResult
 
 
 class CurriculumParser:
-    """Parses curriculum documents and extracts topics using LLM + S-BERT embeddings."""
+    """Parses curriculum documents and extracts topics using Gemini multimodal + S-BERT embeddings."""
 
     def __init__(self, api_key: Optional[str] = None):
         """Initialize parser with Gemini API and S-BERT embeddings."""
         self.client = genai.Client(api_key=api_key)
-        self.model_id = "gemini-3-flash"
+        self.model_id = "gemini-3-flash-preview"
         # Load S-BERT model for semantic embeddings (384-dimensional vectors)
         self.embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 
-    async def parse_pdf(self, file_content: bytes) -> str:
-        """Extract text from PDF file."""
+    async def extract_topics_from_file(self, file_bytes: bytes, file_name: str) -> ParseResult:
+        """Extract topics directly from file bytes using Gemini's multimodal capabilities.
+        
+        Supports PDF, DOCX, and text files without manual parsing.
+        Gemini 3 can read PDFs natively and understand structure/formatting.
+        """
         try:
-            pdf_reader = PyPDF2.PdfReader(BytesIO(file_content))
-            text = ""
-            for page in pdf_reader.pages:
-                text += page.extract_text() + "\n"
-            return text.strip()
-        except Exception as e:
-            raise ValueError(f"Failed to parse PDF: {str(e)}")
-
-    async def parse_text_file(self, file_content: bytes) -> str:
-        """Parse text file."""
-        try:
-            return file_content.decode("utf-8").strip()
-        except Exception as e:
-            raise ValueError(f"Failed to parse text file: {str(e)}")
-
-    async def extract_topics(self, curriculum_text: str) -> ParseResult:
-        """Extract topics from curriculum text using Gemini."""
-        try:
-            prompt = f"""Analyze the following curriculum and extract all major topics and subtopics. 
+            # Determine MIME type from filename
+            mime_type = "application/pdf"
+            if file_name.endswith(".txt"):
+                mime_type = "text/plain"
+            elif file_name.endswith(".docx"):
+                mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            
+            # Send file bytes directly to Gemini with multimodal support
+            response = self.client.models.generate_content(
+                model=self.model_id,
+                contents=[
+                    types.Part.from_bytes(
+                        data=file_bytes,
+                        mime_type=mime_type
+                    ),
+                    """Analyze this curriculum/syllabus document and extract all major topics and subtopics.
 For each topic, provide:
 1. Topic name
 2. Brief description (1-2 sentences)
 3. List of subtopics
 4. Estimated difficulty level (beginner, intermediate, advanced)
 
-Curriculum text:
-{curriculum_text[:2000]}  # Limit to first 2000 chars for API efficiency
-
 Return the response as a JSON array of objects with keys: name, description, subtopics, difficulty_level.
 Only return valid JSON, no additional text."""
-
-            response = self.client.models.generate_content(
-                model=self.model_id,
-                contents=prompt
+                ]
             )
+            
             response_text = response.text
 
             # Parse JSON response
@@ -85,7 +81,7 @@ Only return valid JSON, no additional text."""
             return ParseResult(
                 success=True,
                 topics=topics,
-                raw_text=curriculum_text[:500],
+                raw_text="",
                 error=None,
             )
 
@@ -103,7 +99,7 @@ Only return valid JSON, no additional text."""
             topics: List of TopicExtraction objects
         
         Returns:
-            List of dicts with keys: topic_name, embedding (list[float])
+            List of dicts with topic data and embeddings
         """
         try:
             # Extract topic names to embed
@@ -112,13 +108,16 @@ Only return valid JSON, no additional text."""
             # Generate embeddings (returns numpy arrays)
             embeddings = self.embedding_model.encode(topic_names, convert_to_tensor=False)
             
-            # Format as list of dicts with topic names and embeddings
+            # Format as list of dicts with all topic data and embeddings
             topics_with_embeddings = [
                 {
-                    "topic_name": name,
+                    "topic_name": t.name,
+                    "description": t.description,
+                    "subtopics": t.subtopics or [],
+                    "difficulty_level": t.difficulty_level or "intermediate",
                     "embedding": embeddings[i].tolist(),  # Convert numpy array to list
                 }
-                for i, name in enumerate(topic_names)
+                for i, t in enumerate(topics)
             ]
             
             return topics_with_embeddings

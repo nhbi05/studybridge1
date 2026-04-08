@@ -1,5 +1,7 @@
 """Supabase database client and operations."""
 import os
+import uuid
+import time
 from typing import Optional
 from supabase import create_client, Client
 
@@ -28,11 +30,16 @@ class SupabaseClient:
     async def upload_curriculum_file(
         self, user_id: str, file_name: str, file_content: bytes
     ) -> Optional[str]:
-        """Upload curriculum file to storage and return public URL."""
+        """Upload curriculum file to storage with timestamp for uniqueness.
+        
+        Creates a unique path: curriculums/{user_id}/{timestamp}_{filename}
+        This avoids duplicate errors and keeps upload history.
+        """
         try:
-            # Create storage path: curriculums/user_id/filename
+            # Create storage path with timestamp: curriculums/user_id/timestamp_filename
             bucket_name = "curriculums"
-            file_path = f"{user_id}/{file_name}"
+            timestamp = int(time.time())
+            file_path = f"{user_id}/{timestamp}_{file_name}"
             
             # Upload file to Supabase storage
             response = self.client.storage.from_(bucket_name).upload(
@@ -63,21 +70,24 @@ class SupabaseClient:
     async def save_curriculum_topics(
         self, curriculum_id: str, topics: list[dict]
     ) -> list:
-        """Batch save curriculum topics with embeddings.
+        """Batch save curriculum topics with embeddings and metadata.
         
         Args:
             curriculum_id: ID of the curriculum
-            topics: List of dicts with keys: topic_name, embedding (list[float])
+            topics: List of dicts with keys: topic_name, description, subtopics, difficulty_level, embedding
         
         Returns:
             List of inserted topic records
         """
         try:
-            # Format data for insertion
+            # Format data for insertion with all metadata
             data = [
                 {
                     "curriculum_id": curriculum_id,
                     "topic_name": t["topic_name"],
+                    "description": t.get("description", ""),
+                    "subtopics": t.get("subtopics", []),
+                    "difficulty_level": t.get("difficulty_level", "intermediate"),
                     "embedding": t["embedding"],
                 }
                 for t in topics
@@ -89,7 +99,7 @@ class SupabaseClient:
             raise ValueError(f"Failed to save curriculum topics: {str(e)}")
 
     async def get_curriculum(self, curriculum_id: str) -> Optional[dict]:
-        """Retrieve curriculum by ID."""
+        """Retrieve curriculum by ID with its topics (metadata only, no embeddings)."""
         response = (
             self.client.table("curriculums")
             .select("*")
@@ -97,7 +107,32 @@ class SupabaseClient:
             .single()
             .execute()
         )
-        return response.data
+        curriculum = response.data
+        
+        if curriculum:
+            # Fetch topics for this curriculum (exclude embeddings for API response)
+            topics_response = (
+                self.client.table("curriculum_topics")
+                .select("id, topic_name, description, subtopics, difficulty_level, created_at")
+                .eq("curriculum_id", curriculum_id)
+                .execute()
+            )
+            topics = topics_response.data or []
+            
+            # Transform to topics_extracted format for API response
+            curriculum["topics_extracted"] = [
+                {
+                    "id": t.get("id"),
+                    "name": t.get("topic_name"),
+                    "description": t.get("description", ""),
+                    "subtopics": t.get("subtopics", []),
+                    "difficulty_level": t.get("difficulty_level", "intermediate"),
+                }
+                for t in topics
+            ]
+            curriculum["total_topics"] = len(topics)
+        
+        return curriculum
 
     async def get_curriculum_topics(self, curriculum_id: str) -> list:
         """Get all topics for a curriculum."""
@@ -110,14 +145,38 @@ class SupabaseClient:
         return response.data or []
 
     async def get_user_curriculums(self, user_id: str) -> list:
-        """Get all curriculums for a user."""
+        """Get all curriculums for a user with full topic data."""
         response = (
             self.client.table("curriculums")
             .select("*")
             .eq("user_id", user_id)
             .execute()
         )
-        return response.data or []
+        curriculums = response.data or []
+        
+        # Fetch topics for each curriculum
+        for curriculum in curriculums:
+            topics_response = (
+                self.client.table("curriculum_topics")
+                .select("id, topic_name, description, subtopics, difficulty_level, created_at")
+                .eq("curriculum_id", curriculum["id"])
+                .execute()
+            )
+            topics = topics_response.data or []
+            # Transform to topics_extracted format for frontend
+            curriculum["topics_extracted"] = [
+                {
+                    "id": t.get("id"),
+                    "name": t.get("topic_name"),
+                    "description": t.get("description", ""),
+                    "subtopics": t.get("subtopics", []),
+                    "difficulty_level": t.get("difficulty_level", "intermediate"),
+                }
+                for t in topics
+            ]
+            curriculum["total_topics"] = len(topics)
+        
+        return curriculums
 
     # ============ Resources Operations ============
 

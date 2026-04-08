@@ -1,5 +1,6 @@
 """Recommendations router."""
 from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
 from models.schemas import RecommendationRequest, RecommendationResponse, Resource
 from services.recommender import get_recommender
 from services.embeddings import get_embedding_service
@@ -8,6 +9,88 @@ from db.supabase import get_supabase
 from datetime import datetime
 
 router = APIRouter(prefix="/api/recommendations", tags=["recommendations"])
+
+
+class TopicWithResources(BaseModel):
+    """Topic with matching resources."""
+    topic_name: str
+    topic_id: str
+    matching_resources: list[dict]
+    match_count: int
+
+
+class CurriculumRecommendationsResponse(BaseModel):
+    """Response for semantic curriculum-based recommendations."""
+    curriculum_id: str
+    topics_with_resources: list[TopicWithResources]
+    total_resources: int
+
+
+@router.post("/semantic/{curriculum_id}")
+async def get_semantic_recommendations(
+    curriculum_id: str,
+    current_user = Depends(get_current_user),
+    supabase=Depends(get_supabase),
+) -> CurriculumRecommendationsResponse:
+    """Get resource recommendations using pgvector semantic search.
+    
+    For each topic in the curriculum, finds semantically similar resources
+    using cosine similarity on S-BERT embeddings.
+    
+    Requires authentication. User must own the curriculum.
+    """
+    try:
+        user_id = current_user.id
+        
+        # Verify user owns this curriculum
+        curriculum = await supabase.get_curriculum(curriculum_id)
+        if not curriculum or curriculum.get("user_id") != user_id:
+            raise HTTPException(status_code=403, detail="Unauthorized")
+        
+        # Get all topics for this curriculum
+        topics = await supabase.get_curriculum_topics(curriculum_id)
+        
+        if not topics:
+            raise HTTPException(status_code=400, detail="No topics found for curriculum")
+        
+        # For each topic, find matching resources using pgvector
+        topics_with_resources = []
+        total_resources = 0
+        
+        for topic in topics:
+            topic_id = topic.get("id")
+            topic_name = topic.get("topic_name")
+            embedding = topic.get("embedding")
+            
+            # Call RPC: match_resources with this topic's embedding
+            matching_resources = await supabase.match_resources(
+                query_embedding=embedding,
+                match_threshold=0.5,
+                match_count=10
+            )
+            
+            # Format response
+            topics_with_resources.append(
+                TopicWithResources(
+                    topic_name=topic_name,
+                    topic_id=topic_id,
+                    matching_resources=matching_resources,
+                    match_count=len(matching_resources)
+                )
+            )
+            
+            total_resources += len(matching_resources)
+        
+        return CurriculumRecommendationsResponse(
+            curriculum_id=curriculum_id,
+            topics_with_resources=topics_with_resources,
+            total_resources=total_resources
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get recommendations: {str(e)}")
 
 
 @router.post("/get")

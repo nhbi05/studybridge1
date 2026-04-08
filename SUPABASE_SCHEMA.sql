@@ -55,12 +55,16 @@ CREATE TABLE IF NOT EXISTS curriculum_topics (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   curriculum_id UUID NOT NULL REFERENCES curriculums(id) ON DELETE CASCADE,
   topic_name TEXT NOT NULL,
+  description TEXT DEFAULT '',
+  subtopics JSONB DEFAULT '[]',
+  difficulty_level TEXT DEFAULT 'intermediate' CHECK (difficulty_level IN ('beginner', 'intermediate', 'advanced')),
   embedding VECTOR(384) NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_curriculum_topics_curriculum_id ON curriculum_topics(curriculum_id);
 CREATE INDEX IF NOT EXISTS idx_curriculum_topics_embedding ON curriculum_topics USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+CREATE INDEX IF NOT EXISTS idx_curriculum_topics_difficulty_level ON curriculum_topics(difficulty_level);
 
 
 -- ============================================

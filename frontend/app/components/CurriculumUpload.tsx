@@ -1,10 +1,12 @@
-'use client';
-
 import { Upload, FileText, AlertCircle } from 'lucide-react';
 import { useState } from 'react';
 import { api } from '@/lib/api';
 
-export default function CurriculumUpload() {
+interface CurriculumUploadProps {
+  onUploadSuccess?: () => void;
+}
+
+export default function CurriculumUpload({ onUploadSuccess }: CurriculumUploadProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -44,6 +46,12 @@ export default function CurriculumUpload() {
     try {
       const response = await api.curriculum.upload(uploadedFile);
       setResult(response);
+      setUploadedFile(null);
+      
+      // Call the success callback
+      if (onUploadSuccess) {
+        onUploadSuccess();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
     } finally {

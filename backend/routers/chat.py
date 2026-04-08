@@ -2,6 +2,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from models.schemas import ChatRequest, ChatResponse
 from services.auth import get_current_user
+from db.supabase import get_supabase
 from google import genai
 import os
 
@@ -9,25 +10,30 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 # Initialize Gemini client
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-model_id = "gemini-3-flash"
+model_id = "gemini-3-flash-preview"
 
 
 @router.post("/message")
 async def send_message(
     request: ChatRequest,
     current_user = Depends(get_current_user),
+    supabase = Depends(get_supabase),
 ) -> ChatResponse:
-    """Send a message to the AI advisor and get personalized guidance.
+    """Send a message to the AI learning advisor.
+    
+    Integrates with curriculum topics and semantic recommendations
+    to provide personalized guidance.
     
     Requires authentication. User ID is extracted from the authentication token.
     """
     try:
         user_id = current_user.id
+        
         # Build system prompt
         system_prompt = """You are StudyBridge's AI Learning Advisor. Your role is to help students:
-1. Refine their resource recommendations based on what they know
-2. Adjust difficulty levels
-3. Suggest different resource types
+1. Understand their extracted curriculum topics
+2. Refine their resource recommendations based on what they know
+3. Adjust difficulty levels and resource types
 4. Guide them towards optimal learning paths
 
 Be conversational, supportive, and practical. When users say they already know something, 
@@ -36,11 +42,25 @@ alternatives or different explanations.
 
 Current context:
 - User is using StudyBridge to find curriculum-aligned learning resources
-- They may have uploaded their curriculum
-- They can request harder, easier, or different resource types"""
+- Recommendations are generated using semantic search (pgvector cosine similarity)
+- Suggestions are ranked by relevance score (0-1, higher = better match)
+- Users can filter by difficulty (beginner/intermediate/advanced) and resource type"""
 
+        # If curriculum_id provided, fetch its topics and recommendations
+        curriculum_context = ""
+        if request.curriculum_id:
+            try:
+                # Get curriculum topics
+                topics = await supabase.get_curriculum_topics(request.curriculum_id)
+                if topics:
+                    topic_names = [t.get("topic_name") for t in topics]
+                    curriculum_context = f"\n\nCurriculum topics extracted from syllabus:\n"
+                    curriculum_context += "\n".join([f"- {name}" for name in topic_names])
+            except Exception as e:
+                print(f"Warning: Could not fetch curriculum topics: {e}")
+        
         # Build prompt with context and history
-        prompt = system_prompt + "\n\n"
+        prompt = system_prompt + curriculum_context + "\n\n"
         
         # Add previous messages to context
         if request.conversation_history:
