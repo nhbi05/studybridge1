@@ -1,4 +1,5 @@
 """Recommendations router."""
+import os
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from models.schemas import RecommendationRequest, RecommendationResponse, Resource
@@ -6,6 +7,7 @@ from services.recommender import get_recommender
 from services.embeddings import get_embedding_service
 from services.auth import get_current_user
 from db.supabase import get_supabase
+from seed_resources import hybrid_search
 from datetime import datetime
 
 router = APIRouter(prefix="/api/recommendations", tags=["recommendations"])
@@ -31,11 +33,20 @@ async def get_semantic_recommendations(
     curriculum_id: str,
     current_user = Depends(get_current_user),
     supabase=Depends(get_supabase),
+    embeddings_service=Depends(get_embedding_service),
 ) -> CurriculumRecommendationsResponse:
-    """Get resource recommendations using pgvector semantic search.
+    """Get resource recommendations using HYBRID SEARCH architecture.
     
-    For each topic in the curriculum, finds semantically similar resources
-    using cosine similarity on S-BERT embeddings.
+    Combines:
+    1. pgvector semantic search (pre-seeded DB, fast, semantic)
+    2. Live web search (YouTube + arXiv APIs, fresh results)
+    3. Deduplication + relevance sorting
+    
+    For each topic in the curriculum:
+    - Finds DB resources via pgvector semantic similarity
+    - Searches live web for fresh resources
+    - Combines and deduplicates by URL
+    - Returns top 10 combined results
     
     Requires authentication. User must own the curriculum.
     """
@@ -53,7 +64,7 @@ async def get_semantic_recommendations(
         if not topics:
             raise HTTPException(status_code=400, detail="No topics found for curriculum")
         
-        # For each topic, find matching resources using pgvector
+        # For each topic, find matching resources using hybrid search
         topics_with_resources = []
         total_resources = 0
         
@@ -62,11 +73,19 @@ async def get_semantic_recommendations(
             topic_name = topic.get("topic_name")
             embedding = topic.get("embedding")
             
-            # Call RPC: match_resources with this topic's embedding
-            matching_resources = await supabase.match_resources(
-                query_embedding=embedding,
+            if not embedding:
+                print(f"⚠️  No embedding for topic: {topic_name}")
+                continue
+            
+            # Call HYBRID SEARCH: pgvector + live web search
+            matching_resources = await hybrid_search(
+                topic_text=topic_name,
+                topic_embedding=embedding,
+                supabase=supabase,
+                embeddings_service=embeddings_service,
                 match_threshold=0.5,
-                match_count=10
+                match_count=15,  # Fetch more from DB for hybrid
+                top_k=10  # Return top 10 combined
             )
             
             # Format response
@@ -90,6 +109,7 @@ async def get_semantic_recommendations(
     except HTTPException:
         raise
     except Exception as e:
+        print(f"❌ Recommendations error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to get recommendations: {str(e)}")
 
 

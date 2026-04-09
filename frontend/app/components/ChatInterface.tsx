@@ -71,7 +71,7 @@ export default function ChatInterface() {
         conversation_history: messages
           .filter((m) => m.role !== 'system')
           .map((m) => ({
-            role: m.role,
+            role: m.role as 'user' | 'assistant',
             content: m.content,
           })),
       });

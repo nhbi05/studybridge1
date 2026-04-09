@@ -31,7 +31,6 @@ export default function Dashboard() {
       try {
         setLoading(true);
         const data = await api.recommendations.get({
-          user_id: user?.id || 'user-default',
           limit: 3,
         });
         setRecommendations(data.recommendations || []);
@@ -137,7 +136,7 @@ export default function Dashboard() {
                     title={resource.title}
                     type={resource.type}
                     topic={resource.topic}
-                    relevance_score={resource.relevance_score}
+                    relevanceScore={resource.relevance_score}
                     summary={resource.summary}
                   />
                 ))

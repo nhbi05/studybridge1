@@ -6,6 +6,8 @@ import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
 import { ChevronLeft, BookOpen } from 'lucide-react';
 import { useAuth } from '@/app/contexts/AuthContext';
+import ChatInterface from '@/app/components/ChatInterface';
+import { useUploadStore } from '@/store/useUploadStore';
 
 interface TopicWithResources {
   topic_name: string;
@@ -38,12 +40,59 @@ export default function CurriculumRecommendationsPage({
   const [data, setData] = useState<RecommendationsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Subscribe to upload events for dynamic updates
+  const events = useUploadStore((state) => state.events);
 
   // Initialize Supabase client
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL || '',
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY || ''
   );
+
+  // Function to fetch recommendations
+  const fetchRecommendations = async (showRefreshingState = false) => {
+    try {
+      if (showRefreshingState) setIsRefreshing(true);
+      
+      if (!params.curriculum_id) {
+        setError('Invalid curriculum ID');
+        return;
+      }
+
+      // Fetch recommendations from FastAPI backend
+      const fastApiUrl = process.env.NEXT_PUBLIC_FASTAPI_URL || 'http://localhost:8000';
+      const response = await fetch(
+        `${fastApiUrl}/api/recommendations/semantic/${params.curriculum_id}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${user?.id}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        if (response.status === 403) {
+          setError('You do not have permission to view this curriculum.');
+          return;
+        }
+        throw new Error(`API error: ${response.statusText}`);
+      }
+
+      const recommendationsData: RecommendationsResponse = await response.json();
+      setData(recommendationsData);
+      setError(null);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred.';
+      console.error('Error fetching recommendations:', err);
+      if (!data) setError(errorMessage); // Only set error if no data loaded yet
+    } finally {
+      if (showRefreshingState) setIsRefreshing(false);
+    }
+  };
 
   // Redirect if not authenticated and fetch data
   useEffect(() => {
@@ -54,7 +103,7 @@ export default function CurriculumRecommendationsPage({
       return;
     }
 
-    const fetchData = async () => {
+    const initializeData = async () => {
       try {
         if (!params.curriculum_id) {
           setError('Invalid curriculum ID');
@@ -63,29 +112,8 @@ export default function CurriculumRecommendationsPage({
 
         setLoading(true);
         
-        // Fetch recommendations from FastAPI backend
-        const fastApiUrl = process.env.NEXT_PUBLIC_FASTAPI_URL || 'http://localhost:8000';
-        const response = await fetch(
-          `${fastApiUrl}/api/recommendations/semantic/${params.curriculum_id}`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${user?.id}`,
-            },
-          }
-        );
-
-        if (!response.ok) {
-          if (response.status === 403) {
-            setError('You do not have permission to view this curriculum.');
-            return;
-          }
-          throw new Error(`API error: ${response.statusText}`);
-        }
-
-        const recommendationsData: RecommendationsResponse = await response.json();
-        setData(recommendationsData);
+        // Fetch recommendations
+        await fetchRecommendations();
 
         // Get curriculum details for header
         const { data: curriculumData } = await supabase
@@ -95,18 +123,33 @@ export default function CurriculumRecommendationsPage({
           .single();
 
         setCurriculum(curriculumData);
-        setError(null);
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred.';
-        console.error('Error fetching recommendations:', err);
-        setError(errorMessage);
+        console.error('Error initializing:', err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchData();
-  }, [isAuthenticated, authLoading, user?.id, params.curriculum_id, router, supabase]);
+    initializeData();
+  }, [isAuthenticated, authLoading, params.curriculum_id, router, supabase]);
+
+  // Refetch recommendations when embedding completes (dynamic updates)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    // Check if embedding just completed
+    const embeddingEvent = events.find((e) => e.type === 'embedding');
+    const completeEvent = events.find((e) => e.type === 'complete');
+
+    if ((embeddingEvent && !isRefreshing) || completeEvent) {
+      // Debounce refetch - wait a moment for backend to index
+      const timer = setTimeout(() => {
+        fetchRecommendations(true);
+      }, 1500);
+
+      return () => clearTimeout(timer);
+    }
+  }, [events, isAuthenticated, isRefreshing]);
 
   // Show loading state
   if (authLoading || loading) {
@@ -163,7 +206,7 @@ export default function CurriculumRecommendationsPage({
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-6 py-6">
+        <div className="max-w-7xl mx-auto px-6 py-6">
           <div className="flex items-center gap-4 mb-4">
             <Link
               href="/curriculum"
@@ -178,31 +221,48 @@ export default function CurriculumRecommendationsPage({
             <p className="text-gray-600 mt-2">
               {curriculum?.summary || 'Based on your curriculum'}
             </p>
-            <div className="mt-4 flex gap-4 text-sm">
+            <div className="mt-4 flex gap-6 text-sm">
               <div className="flex items-center text-gray-600">
-                <span className="font-semibold text-gray-900 mr-1">{data.topics_with_resources.length}</span>
+                <span className="font-semibold text-gray-900 mr-1">
+                  {data?.topics_with_resources.length || 0}
+                </span>
                 Topics extracted
               </div>
               <div className="flex items-center text-gray-600">
-                <span className="font-semibold text-gray-900 mr-1">{data.total_resources}</span>
+                <span className="font-semibold text-gray-900 mr-1">{data?.total_resources || 0}</span>
                 Resources matched
               </div>
+              {isRefreshing && (
+                <div className="flex items-center text-blue-600">
+                  <div className="animate-spin mr-2 w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full" />
+                  Updating recommendations...
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-6 py-12">
-        {data.topics_with_resources.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-            <BookOpen className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">No topics found</h2>
-            <p className="text-gray-600">
-              Upload a curriculum file to extract topics and find matching resources.
-            </p>
-          </div>
-        ) : (
+      {/* Main Content Grid */}
+      <div className="max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Left: Recommendations */}
+        <div className="lg:col-span-2">
+          {!data ? (
+            <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
+              <div className="animate-pulse space-y-3">
+                <div className="h-4 bg-gray-200 rounded w-3/4 mx-auto" />
+                <div className="h-4 bg-gray-200 rounded w-1/2 mx-auto" />
+              </div>
+            </div>
+          ) : data.topics_with_resources.length === 0 ? (
+            <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
+              <BookOpen className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <h2 className="text-lg font-semibold text-gray-900 mb-2">No topics found</h2>
+              <p className="text-gray-600">
+                Upload a curriculum file to extract topics and find matching resources.
+              </p>
+            </div>
+          ) : (
           <div className="space-y-8">
             {data.topics_with_resources.map((topic) => (
               <div key={topic.topic_id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -281,6 +341,14 @@ export default function CurriculumRecommendationsPage({
             ))}
           </div>
         )}
+        </div>
+
+        {/* Right: Chat Sidebar */}
+        <div className="lg:col-span-1">
+          <div className="sticky top-24 h-fit">
+            <ChatInterface />
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -12,10 +12,9 @@ export default function RecommendationsPage() {
   const router = useRouter();
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [resources, setResources] = useState<any[]>([]);
+  const [topics, setTopics] = useState<string[]>(['All']);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const topics = ['All', 'Mathematics', 'Physics', 'Computer Science', 'Literature'];
 
   // Enforce login
   useEffect(() => {
@@ -23,6 +22,39 @@ export default function RecommendationsPage() {
       router.push('/auth/login');
     }
   }, [isAuthenticated, authLoading, router]);
+
+  // Fetch curriculums and extract unique topics
+  useEffect(() => {
+    if (!isAuthenticated || authLoading) return;
+
+    const fetchCurriculumsAndTopics = async () => {
+      try {
+        const response = await api.curriculum.list();
+        const curriculums = response.curriculums || [];
+
+        // Extract unique topic names from all curriculums
+        const topicSet = new Set<string>();
+        curriculums.forEach((curriculum: any) => {
+          if (curriculum.topics_extracted && Array.isArray(curriculum.topics_extracted)) {
+            curriculum.topics_extracted.forEach((topic: any) => {
+              if (topic.name) {
+                topicSet.add(topic.name);
+              }
+            });
+          }
+        });
+
+        // Convert to sorted array and prepend 'All'
+        const uniqueTopics = ['All', ...Array.from(topicSet).sort()];
+        setTopics(uniqueTopics);
+      } catch (err) {
+        console.error('Failed to fetch curriculums:', err);
+        // Keep default topics if fetch fails
+      }
+    };
+
+    fetchCurriculumsAndTopics();
+  }, [isAuthenticated, authLoading]);
 
   // Fetch recommendations
   useEffect(() => {
