@@ -138,6 +138,7 @@ export default function Dashboard() {
                     topic={resource.topic}
                     relevanceScore={resource.relevance_score}
                     summary={resource.summary}
+                    url={resource.url}
                   />
                 ))
               ) : (

@@ -160,7 +160,7 @@ export default function CurriculumPage() {
                   {/* Summary Card */}
                   <CurriculumSummaryCard
                     summary={curriculum.summary}
-                    milestones={curriculum.milestones}
+                    milestones={(curriculum as any).metadata?.milestones || curriculum.milestones || []}
                     topicNames={curriculum.topics_extracted?.map((t) => t.name) || []}
                     onViewFullDocument={() => {
                       setSelectedDrawerCurriculum(curriculum);
@@ -232,8 +232,8 @@ export default function CurriculumPage() {
               {!selectedTopicsCurriculum.topics_extracted || selectedTopicsCurriculum.topics_extracted.length === 0 ? (
                 <p className="text-gray-600 text-center py-8">No topics extracted</p>
               ) : (
-                selectedTopicsCurriculum.topics_extracted.map((topic, idx) => (
-                  <div key={idx} className="border border-gray-200 rounded-lg p-4">
+                selectedTopicsCurriculum.topics_extracted.map((topic) => (
+                  <div key={topic.name} className="border border-gray-200 rounded-lg p-4">
                     <div className="flex items-start justify-between mb-2">
                       <h3 className="font-semibold text-gray-900">{topic.name}</h3>
                       {topic.difficulty_level && (
@@ -258,7 +258,7 @@ export default function CurriculumPage() {
                         <p className="text-xs font-semibold text-gray-700 mb-2">Subtopics:</p>
                         <ul className="space-y-1">
                           {topic.subtopics.map((subtopic, subIdx) => (
-                            <li key={subIdx} className="text-sm text-gray-600">
+                            <li key={`${topic.name}-${subIdx}`} className="text-sm text-gray-600">
                               • {subtopic}
                             </li>
                           ))}

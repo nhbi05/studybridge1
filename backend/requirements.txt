@@ -22,4 +22,5 @@ transformers
 pandas
 matplotlib
 scikit-learn
-scipy           
+scipy
+huggingface_hub           

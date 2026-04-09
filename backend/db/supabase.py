@@ -63,7 +63,9 @@ class SupabaseClient:
             "file_name": file_name,
             "file_url": file_url,
             "summary": summary,
-            "milestones": milestones or [],
+            "metadata": {
+                "milestones": milestones or []
+            }
         }
         response = self.client.table("curriculums").insert(data).execute()
         return response.data[0] if response.data else None
@@ -244,7 +246,7 @@ class SupabaseClient:
         )
         return response.data["embedding"] if response.data else None
 
-    async def match_resources(
+    def match_resources(
         self,
         query_embedding: list[float],
         match_threshold: float = 0.5,
@@ -264,7 +266,7 @@ class SupabaseClient:
         except Exception as e:
             raise ValueError(f"Failed to match resources: {str(e)}")
 
-    async def match_curriculum_topics(
+    def match_curriculum_topics(
         self,
         query_embedding: list[float],
         curriculum_id: Optional[str] = None,

@@ -322,7 +322,7 @@ def get_topics_from_database() -> List[Dict]:
         ]
 
 
-async def hybrid_search(
+def hybrid_search(
     topic_text: str,
     topic_embedding: List[float],
     supabase,
@@ -356,7 +356,7 @@ async def hybrid_search(
     try:
         # ── Phase 1: pgvector Search (Fast, Semantic) ─────────────────
         print(f"  🔍 Phase 1: pgvector search for '{topic_text}'...")
-        db_results = await supabase.match_resources(
+        db_results = supabase.match_resources(
             query_embedding=topic_embedding,
             match_threshold=match_threshold,
             match_count=match_count
@@ -389,7 +389,7 @@ async def hybrid_search(
         # Embed live results on the fly
         for result in live_results:
             text = f"{result['title']} {result.get('summary', '')}"
-            result['embedding'] = embeddings_service.encode(text).tolist()
+            result['embedding'] = embeddings_service.embed_text(text)
             result['relevance_score'] = 0.7  # Default before reranking
             combined_results.append(result)
         

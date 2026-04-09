@@ -1,4 +1,4 @@
-import { Star } from 'lucide-react';
+import { Star, ExternalLink } from 'lucide-react';
 
 interface ResourceCardProps {
   title: string;
@@ -6,6 +6,7 @@ interface ResourceCardProps {
   topic: string;
   relevanceScore: number;
   summary: string;
+  url?: string;
 }
 
 const typeStyles = {
@@ -20,6 +21,7 @@ export default function ResourceCard({
   topic,
   relevanceScore,
   summary,
+  url,
 }: ResourceCardProps) {
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-6 hover:border-emerald-300 hover:shadow-md transition-all">
@@ -46,8 +48,21 @@ export default function ResourceCard({
             {(relevanceScore * 100).toFixed(0)}% relevant
           </span>
         </div>
-        <button className="text-sm font-medium text-emerald-600 hover:text-emerald-700 transition-colors">
+        <button
+          onClick={() => {
+            if (url) {
+              window.open(url, '_blank');
+            }
+          }}
+          disabled={!url}
+          className={`inline-flex items-center gap-1 text-sm font-medium transition-colors ${
+            url
+              ? 'text-emerald-600 hover:text-emerald-700 cursor-pointer'
+              : 'text-gray-400 cursor-not-allowed'
+          }`}
+        >
           View Resource
+          <ExternalLink className="w-3 h-3" />
         </button>
       </div>
     </div>
