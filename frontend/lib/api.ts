@@ -13,7 +13,7 @@ const supabase = createClient(
 );
 
 // Get authorization header with Supabase token
-async function getAuthHeader() {
+async function getAuthHeader(): Promise<Record<string, string>> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.access_token) {

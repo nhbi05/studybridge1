@@ -54,15 +54,17 @@ async def upload_curriculum(
         # 4. Generate S-BERT embeddings for each topic
         topics_with_embeddings = await parser.embed_topics(parse_result.topics)
 
-        # 5. Generate summary from topics
-        summary = f"Curriculum containing {len(parse_result.topics)} core topics: {', '.join([t.name for t in parse_result.topics[:5]])}"
+        # 5. Use AI-generated summary and milestones from parser
+        summary = parse_result.summary or f"Curriculum containing {len(parse_result.topics)} core topics: {', '.join([t.name for t in parse_result.topics[:5]])}"
+        milestones = parse_result.milestones or []
 
-        # 6. Save curriculum metadata (WITHOUT topics column)
+        # 6. Save curriculum metadata with summary and milestones
         saved_curriculum = await supabase.save_curriculum(
             user_id=user_id,
             file_name=file.filename,
             file_url=file_url,
             summary=summary,
+            milestones=milestones,
         )
 
         if not saved_curriculum:
@@ -84,6 +86,7 @@ async def upload_curriculum(
             topics_extracted=parse_result.topics,
             total_topics=len(parse_result.topics),
             summary=summary,
+            milestones=milestones,
         )
 
     except HTTPException:

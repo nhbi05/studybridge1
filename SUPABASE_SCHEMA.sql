@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS curriculums (
   file_name TEXT NOT NULL,
   file_url TEXT,
   summary TEXT,
+  milestones JSONB DEFAULT '[]',
   metadata JSONB DEFAULT '{}',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

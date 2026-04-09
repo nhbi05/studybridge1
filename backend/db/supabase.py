@@ -55,7 +55,7 @@ class SupabaseClient:
     # ============ Curriculum Operations ============
 
     async def save_curriculum(
-        self, user_id: str, file_name: str, file_url: str, summary: str
+        self, user_id: str, file_name: str, file_url: str, summary: str, milestones: list = None
     ) -> dict:
         """Save curriculum to database (topics saved separately)."""
         data = {
@@ -63,6 +63,7 @@ class SupabaseClient:
             "file_name": file_name,
             "file_url": file_url,
             "summary": summary,
+            "milestones": milestones or [],
         }
         response = self.client.table("curriculums").insert(data).execute()
         return response.data[0] if response.data else None

@@ -4,8 +4,11 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import CurriculumUpload from '../components/CurriculumUpload';
+import CurriculumSummaryCard from '../components/CurriculumSummaryCard';
+import DocumentDrawer from '../components/DocumentDrawer';
 import { api } from '@/lib/api';
 import { BookOpen, Eye, RotateCw, X, Link as LinkIcon } from 'lucide-react';
+import ChatInterface from '../components/ChatInterface';
 
 interface Topic {
   name: string;
@@ -16,11 +19,15 @@ interface Topic {
 
 interface Curriculum {
   curriculum_id: string;
+  id?: string;
   file_name: string;
+  file_url?: string;
   summary: string;
+  milestones?: string[];
   topics_extracted: Topic[];
   total_topics: number;
 }
+
 
 export default function CurriculumPage() {
   const { isAuthenticated, loading: authLoading } = useAuth();
@@ -30,6 +37,8 @@ export default function CurriculumPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedTopicsCurriculum, setSelectedTopicsCurriculum] = useState<Curriculum | null>(null);
   const [reanalyzingId, setReanalyzingId] = useState<string | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selectedDrawerCurriculum, setSelectedDrawerCurriculum] = useState<Curriculum | null>(null);
 
   // Enforce login
   useEffect(() => {
@@ -116,21 +125,23 @@ export default function CurriculumPage() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-4xl mx-auto px-8 py-8">
-        <CurriculumUpload onUploadSuccess={handleUploadSuccess} />
+      <div className="max-w-7xl mx-auto px-8 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Left side: Upload & Curriculums */}
+        <div className="lg:col-span-2">
+          <CurriculumUpload onUploadSuccess={handleUploadSuccess} />
 
-        {/* Error Message */}
-        {error && (
-          <div className="mt-8 bg-red-50 border border-red-200 rounded-lg p-4">
-            <p className="text-red-800 text-sm font-medium">{error}</p>
-          </div>
-        )}
+          {/* Error Message */}
+          {error && (
+            <div className="mt-8 bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="text-red-800 text-sm font-medium">{error}</p>
+            </div>
+          )}
 
-        {/* Uploaded Curriculums */}
-        <div className="mt-12">
-          <h2 className="text-xl font-bold text-gray-900 mb-6">
-            Your Uploaded Curriculums
-          </h2>
+          {/* Uploaded Curriculums */}
+          <div className="mt-12">
+            <h2 className="text-xl font-bold text-gray-900 mb-6">
+              Your Uploaded Curriculums
+            </h2>
 
           {loadingCurriculums ? (
             <div className="text-center py-12">
@@ -145,22 +156,19 @@ export default function CurriculumPage() {
           ) : (
             <div className="space-y-4">
               {curriculums.map((curriculum) => (
-                <div
-                  key={curriculum.curriculum_id}
-                  className="bg-white rounded-lg border border-gray-200 p-6 hover:border-emerald-300 transition-colors"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900 text-lg">
-                        {curriculum.file_name}
-                      </h3>
-                      <p className="text-sm text-gray-600 mt-2">
-                        {curriculum.total_topics} topics extracted • {curriculum.summary}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Buttons */}
+                <div key={curriculum.curriculum_id} className="space-y-3">
+                  {/* Summary Card */}
+                  <CurriculumSummaryCard
+                    summary={curriculum.summary}
+                    milestones={curriculum.milestones}
+                    topicNames={curriculum.topics_extracted?.map((t) => t.name) || []}
+                    onViewFullDocument={() => {
+                      setSelectedDrawerCurriculum(curriculum);
+                      setDrawerOpen(true);
+                    }}
+                  />
+                  
+                  {/* Action Buttons */}
                   <div className="flex gap-2">
                     <button
                       onClick={() => setSelectedTopicsCurriculum(curriculum)}
@@ -194,8 +202,14 @@ export default function CurriculumPage() {
             </div>
           )}
         </div>
-      </div>
 
+        {/* Right side: Chat Sidebar */}
+        <div className="lg:col-span-1">
+          <div className="sticky top-8 h-fit">
+            <ChatInterface />
+          </div>
+        </div>
+      </div>      </div>
       {/* Topics Modal */}
       {selectedTopicsCurriculum && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
@@ -257,6 +271,19 @@ export default function CurriculumPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Document Drawer */}
+      {selectedDrawerCurriculum && (
+        <DocumentDrawer
+          isOpen={drawerOpen}
+          onClose={() => {
+            setDrawerOpen(false);
+            setSelectedDrawerCurriculum(null);
+          }}
+          fileName={selectedDrawerCurriculum.file_name}
+          fileUrl={selectedDrawerCurriculum.file_url || ''}
+        />
       )}
     </div>
   );

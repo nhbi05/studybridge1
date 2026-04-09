@@ -1,6 +1,7 @@
 import { Upload, FileText, AlertCircle } from 'lucide-react';
 import { useState } from 'react';
 import { api } from '@/lib/api';
+import { useUploadStore } from '@/store/useUploadStore';
 
 interface CurriculumUploadProps {
   onUploadSuccess?: () => void;
@@ -12,6 +13,10 @@ export default function CurriculumUpload({ onUploadSuccess }: CurriculumUploadPr
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<any>(null);
+  
+  const startAnalysis = useUploadStore((state) => state.startAnalysis);
+  const addEvent = useUploadStore((state) => state.addEvent);
+  const completeAnalysis = useUploadStore((state) => state.completeAnalysis);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -42,18 +47,82 @@ export default function CurriculumUpload({ onUploadSuccess }: CurriculumUploadPr
     setLoading(true);
     setError(null);
     setResult(null);
+    
+    // Start the analysis sequence in the chat
+    startAnalysis(uploadedFile.name);
+    
+    addEvent({
+      type: 'file_received',
+      message: `Received ${uploadedFile.name}! I'm starting the deep analysis now. 🔍`,
+      fileName: uploadedFile.name,
+    });
 
     try {
+      // Simulate LLM confirming topics after a brief delay
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      
+      addEvent({
+        type: 'confirming_topics',
+        message: `I've identified the primary topics in your curriculum. Let me confirm what I found...`,
+      });
+
+      // Main upload and extraction
       const response = await api.curriculum.upload(uploadedFile);
+      
+      // Add topics confirmation question
+      const topicNames = response.topics_extracted?.map((t: any) => t.name) || [];
+      
+      if (topicNames.length > 0) {
+        const topicList = topicNames.slice(0, 3).join(', ') + (topicNames.length > 3 ? `, and ${topicNames.length - 3} more` : '');
+        
+        addEvent({
+          type: 'confirmation_question',
+          message: `I've identified "${topicList}" as your primary goals. Should I include all of these in your resource bridge?`,
+          topics: topicNames,
+          isAwaitingUserInput: true,
+        });
+        
+        // Simulate user response after a delay (auto-confirm)
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        
+        addEvent({
+          type: 'confirmation_question',
+          message: `Got it. Including all ${topicNames.length} topics in your analysis...`,
+          userResponse: 'Yes, include all',
+        });
+      }
+
+      // BERT embedding phase
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      addEvent({
+        type: 'embedding',
+        message: `Extraction complete! I'm now running these through our BERT model to find the best MIT and Coursera matches. Check your Recommendations tab in 3... 2... 1... ✨`,
+      });
+
       setResult(response);
       setUploadedFile(null);
+      
+      // Complete the analysis
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      completeAnalysis();
+      
+      addEvent({
+        type: 'complete',
+        message: `Done! I've updated your curriculum profile with ${topicNames.length} topics and generated personalized recommendations.`,
+      });
       
       // Call the success callback
       if (onUploadSuccess) {
         onUploadSuccess();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed');
+      const errorMsg = err instanceof Error ? err.message : 'Upload failed';
+      setError(errorMsg);
+      addEvent({
+        type: 'error',
+        message: `❌ Error during analysis: ${errorMsg}`,
+      });
+      completeAnalysis();
     } finally {
       setLoading(false);
     }

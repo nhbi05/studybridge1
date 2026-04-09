@@ -30,6 +30,7 @@ class CurriculumAnalysisResponse(BaseModel):
     topics_extracted: list[TopicExtraction]
     total_topics: int
     summary: str
+    milestones: Optional[list[str]] = None
 
 
 # ============ Resource Models ============
@@ -162,6 +163,8 @@ class ParseResult(BaseModel):
     topics: list[TopicExtraction]
     raw_text: Optional[str] = None
     error: Optional[str] = None
+    summary: Optional[str] = None
+    milestones: Optional[list[str]] = None
 
 
 class EmbeddingRequest(BaseModel):

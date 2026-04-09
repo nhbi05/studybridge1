@@ -20,11 +20,7 @@ class CurriculumParser:
         self.embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 
     async def extract_topics_from_file(self, file_bytes: bytes, file_name: str) -> ParseResult:
-        """Extract topics directly from file bytes using Gemini's multimodal capabilities.
-        
-        Supports PDF, DOCX, and text files without manual parsing.
-        Gemini 3 can read PDFs natively and understand structure/formatting.
-        """
+        """Extract topics and generate AI summary from curriculum document."""
         try:
             # Determine MIME type from filename
             mime_type = "application/pdf"
@@ -42,13 +38,26 @@ class CurriculumParser:
                         mime_type=mime_type
                     ),
                     """Analyze this curriculum/syllabus document and extract all major topics and subtopics.
-For each topic, provide:
-1. Topic name
-2. Brief description (1-2 sentences)
-3. List of subtopics
-4. Estimated difficulty level (beginner, intermediate, advanced)
+Also provide:
+1. A 2-3 sentence elevator pitch summarizing the course
+2. The 3 most important dates/milestones found in the document
 
-Return the response as a JSON array of objects with keys: name, description, subtopics, difficulty_level.
+For each topic, provide:
+- Topic name
+- Brief description (1-2 sentences)
+- List of subtopics
+- Estimated difficulty level (beginner, intermediate, advanced)
+
+Return a JSON object with:
+{
+  "summary": "2-3 sentence overview of the course",
+  "milestones": ["Milestone 1", "Milestone 2", "Milestone 3"],
+  "topics": [
+    {"name": "...", "description": "...", "subtopics": [...], "difficulty_level": "..."},
+    ...
+  ]
+}
+
 Only return valid JSON, no additional text."""
                 ]
             )
@@ -57,15 +66,19 @@ Only return valid JSON, no additional text."""
 
             # Parse JSON response
             try:
-                topics_data = json.loads(response_text)
+                data = json.loads(response_text)
             except json.JSONDecodeError:
                 # Try to extract JSON from response
-                start = response_text.find("[")
-                end = response_text.rfind("]") + 1
+                start = response_text.find("{")
+                end = response_text.rfind("}") + 1
                 if start >= 0 and end > start:
-                    topics_data = json.loads(response_text[start:end])
+                    data = json.loads(response_text[start:end])
                 else:
                     raise ValueError("Could not parse LLM response as JSON")
+
+            topics_data = data.get("topics", [])
+            summary = data.get("summary", "")
+            milestones = data.get("milestones", [])
 
             topics = [
                 TopicExtraction(
@@ -83,6 +96,8 @@ Only return valid JSON, no additional text."""
                 topics=topics,
                 raw_text="",
                 error=None,
+                summary=summary,
+                milestones=milestones,
             )
 
         except Exception as e:
