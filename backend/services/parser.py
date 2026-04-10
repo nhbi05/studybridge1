@@ -15,7 +15,7 @@ class CurriculumParser:
     def __init__(self, api_key: Optional[str] = None):
         """Initialize parser with Gemini API and S-BERT embeddings."""
         self.client = genai.Client(api_key=api_key)
-        self.model_id = "gemini-3-flash-preview"
+        self.model_id = "gemini-2.5-flash"
         # Load S-BERT model for semantic embeddings (384-dimensional vectors)
         self.embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 

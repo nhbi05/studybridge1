@@ -50,7 +50,8 @@ class Resource(BaseModel):
     type: str = Field(description="video, article, exercise, book, course")
     topic: str
     relevance_score: float = Field(ge=0, le=1)
-    summary: str
+    summary: Optional[str] = None
+    url: Optional[str] = None
     metadata: Optional[ResourceMetadata] = None
     embedding: Optional[list[float]] = None
 

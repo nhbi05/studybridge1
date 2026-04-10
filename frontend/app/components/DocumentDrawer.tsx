@@ -24,9 +24,8 @@ export default function DocumentDrawer({
     setIsMounted(true);
   }, []);
 
-  if (!isMounted) return null;
-
   // Disable body scroll when drawer is open
+  // Must be before any early returns to maintain consistent hook count
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -37,6 +36,8 @@ export default function DocumentDrawer({
       document.body.style.overflow = 'unset';
     };
   }, [isOpen]);
+
+  if (!isMounted) return null;
 
   return (
     <>

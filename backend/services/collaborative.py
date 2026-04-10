@@ -40,7 +40,7 @@ class NCFRecommender:
         try:
             print("📥 Loading NCF model from HuggingFace...")
             
-            # Download model if not cached
+            # Download model 
             model_path = hf_hub_download(
                 repo_id=HF_REPO_ID,
                 filename=MODEL_FILENAME,

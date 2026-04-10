@@ -156,7 +156,7 @@ export default function CurriculumPage() {
           ) : (
             <div className="space-y-4">
               {curriculums.map((curriculum) => (
-                <div key={curriculum.curriculum_id} className="space-y-3">
+                <div key={curriculum.curriculum_id || curriculum.id} className="space-y-3">
                   {/* Summary Card */}
                   <CurriculumSummaryCard
                     summary={curriculum.summary}

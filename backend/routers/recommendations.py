@@ -210,7 +210,8 @@ async def get_recommendations(
                 type=r.get("type"),
                 topic=r.get("topic"),
                 relevance_score=r.get("relevance_score", 0.5),
-                summary=r.get("summary"),
+                summary=r.get("summary") or "Learning resource on this topic",
+                url=r.get("url"),
                 metadata=r.get("metadata"),
                 embedding=r.get("embedding"),
             )

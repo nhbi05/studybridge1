@@ -10,7 +10,7 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 # Initialize Gemini client
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-model_id = "gemini-3-flash-preview"
+model_id = "gemini-2.5-flash"
 
 
 @router.post("/message")
