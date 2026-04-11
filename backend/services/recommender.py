@@ -1,7 +1,8 @@
 """Recommendation engine with ML-based filtering."""
 import json
+import os
 from typing import Optional, List
-import anthropic
+from google import genai
 from models.schemas import Resource
 from services.embeddings import get_embedding_service
 from db.supabase import get_supabase
@@ -14,8 +15,8 @@ class RecommendationEngine:
         """Initialize recommendation engine."""
         self.embedding_service = get_embedding_service()
         self.supabase = get_supabase()
-        self.client = anthropic.Anthropic()
-        self.model = "claude-3-5-sonnet-20241022"
+        self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+        self.model = "gemini-2.5-flash-lite"
 
     async def get_recommendations(
         self,
@@ -99,7 +100,7 @@ class RecommendationEngine:
         user_context: str,
         max_results: int = 10,
     ) -> List[dict]:
-        """Rerank resources using Claude for better relevance."""
+        """Rerank resources using Gemini for better relevance."""
         try:
             resources_text = "\n".join(
                 [
@@ -119,13 +120,12 @@ Resources:
 
 Return only a JSON array of strings (resource titles), no other text."""
 
-            message = self.client.messages.create(
+            message = self.client.models.generate_content(
                 model=self.model,
-                max_tokens=1000,
-                messages=[{"role": "user", "content": prompt}],
+                contents=prompt
             )
 
-            response_text = message.content[0].text
+            response_text = message.text
 
             # Parse JSON response
             try:
