@@ -5,9 +5,7 @@ pydantic
 pydantic-settings
 python-dotenv
 supabase
-openai
 google-genai
-
 requests
 PyPDF2
 python-docx
@@ -16,12 +14,5 @@ numpy
 sentence-transformers
 PyJWT
 passlib[bcrypt]
-
-# ML/AI Model packages
-torch
-transformers
-pandas
-matplotlib
 scikit-learn
-scipy
-huggingface_hub           
+scipy           
