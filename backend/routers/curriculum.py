@@ -14,7 +14,6 @@ router = APIRouter(prefix="/api/curriculum", tags=["curriculum"])
 async def upload_curriculum(
     file: UploadFile = File(...),
     current_user = Depends(get_current_user),
-    parser=Depends(get_parser),
     supabase=Depends(get_supabase),
 ) -> CurriculumAnalysisResponse:
     """Upload and parse a curriculum file (PDF, DOCX, or TXT).
@@ -30,6 +29,7 @@ async def upload_curriculum(
     """
     try:
         user_id = current_user.id
+        parser = get_parser()  # Get parser instance
         
         # 1. Read file content as BINARY (don't decode!)
         file_content = await file.read()
@@ -49,7 +49,12 @@ async def upload_curriculum(
         )
 
         if not parse_result.success:
-            raise HTTPException(status_code=400, detail=parse_result.error)
+            error_detail = parse_result.error or "Unknown error during parsing"
+            # Check if it's a Gemini API overload error
+            if "503" in error_detail or "UNAVAILABLE" in error_detail:
+                raise HTTPException(status_code=503, detail="AI service is currently overloaded. Please try again in a few moments.")
+            else:
+                raise HTTPException(status_code=400, detail=error_detail)
 
         # 4. Generate S-BERT embeddings for each topic
         topics_with_embeddings = await parser.embed_topics(parse_result.topics)

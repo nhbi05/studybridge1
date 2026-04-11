@@ -10,7 +10,7 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 # Initialize Gemini client
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-model_id = "gemini-2.5-flash"
+model_id = "gemini-2.5-flash-lite"
 
 
 @router.post("/message")
@@ -72,12 +72,20 @@ Current context:
         prompt += f"User: {request.user_message}\nAssistant:"
 
         # Get Gemini response
-        response = client.models.generate_content(
-            model=model_id,
-            contents=prompt
-        )
-        
-        assistant_message = response.text
+        try:
+            response = client.models.generate_content(
+                model=model_id,
+                contents=prompt
+            )
+            assistant_message = response.text
+        except Exception as api_error:
+            error_msg = str(api_error)
+            if "503" in error_msg or "UNAVAILABLE" in error_msg:
+                raise HTTPException(status_code=503, detail="AI service is currently overloaded. Please try again in a few moments.")
+            elif "401" in error_msg or "UNAUTHENTICATED" in error_msg:
+                raise HTTPException(status_code=401, detail="Invalid API key for Gemini service.")
+            else:
+                raise HTTPException(status_code=500, detail=f"Chat service error: {error_msg}")
 
         # Parse any filter suggestions from the response
         updated_filters = {}
